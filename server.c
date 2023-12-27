@@ -6,7 +6,7 @@
 #include <netinet/in.h>
 #include <errno.h>
 #include <string.h>
-#define MAX_CLIENTS 10
+
 #define PORT 8085
 #define BUFFER_SIZE 1024
 
@@ -93,7 +93,7 @@ int main() {
     while (1) {
         // Инициализация множества дескрипторов файлов
         FD_ZERO(&fds);
-        FD_SET(serverSocket, &fds);  // Основной сокет
+        FD_SET(serverSocket, &fds);
 
         if (AnotherSocket > 0)
         {
@@ -137,7 +137,6 @@ int main() {
 
     }
 
-    // Закрытие серверного сокета (эта часть кода не будет выполнена, так как цикл бесконечен)
     close(serverSocket);
 
     return 0;

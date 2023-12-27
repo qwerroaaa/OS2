@@ -30,7 +30,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Дополнительные действия при подключении к серверу
     printf("Connected to the server.\n");
 
     // Отправка сообщения на сервер
