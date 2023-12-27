@@ -4,7 +4,9 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
+#include <errno.h>
+#include <string.h>
+#define MAX_CLIENTS 10
 #define PORT 8085
 #define BUFFER_SIZE 1024
 
@@ -14,18 +16,44 @@ void sigHupHandler(int signo) {
     wasSigHup = 1;
 }
 
+void sendMessage (int* AnotherSocket) {
+    char buffer[BUFFER_SIZE] = { 0 };
+    int readBytes = read(*AnotherSocket, buffer, BUFFER_SIZE);
+
+    if (readBytes > 0) 
+    { 
+        printf("Received data: %d bytes\n", readBytes);
+        printf("Received message from client: %s\n", buffer);
+
+        const char* response = "Hello stranger, it is you server!";
+        if (send(*AnotherSocket, response, strlen(response), 0) < 0) {
+            perror("send error");
+        }
+
+    } else {
+        if (readBytes == 0) {
+            close(*AnotherSocket); 
+            *AnotherSocket = 0; 
+            printf("Connection closed\n\n");
+        } else { 
+            perror("read error"); 
+        }  
+    }
+}
+
 int main() {
     // Регистрация обработчика сигнала SIGHUP
     struct sigaction sa;
     sa.sa_handler = sigHupHandler;
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags |= SA_RESTART;
     sigaction(SIGHUP, &sa, NULL);
 
     // Блокировка сигнала SIGHUP
-    sigset_t blockedMask;
+    sigset_t blockedMask, origMask;
     sigemptyset(&blockedMask);
+    sigemptyset(&origMask);
     sigaddset(&blockedMask, SIGHUP);
-    sigprocmask(SIG_BLOCK, &blockedMask, NULL);
+    sigprocmask(SIG_BLOCK, &blockedMask, &origMask);
 
     // Создание сокета
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -56,48 +84,57 @@ int main() {
 
     printf("Server listening on port %d...\n", PORT);
 
+    // Множество дескрипторов файлов для pselect
+    int maxFd;  // Начальное значение - основной сокет
+    fd_set fds;
+    int AnotherSocket = 0;
+    int addressLength = sizeof(serverAddress);
     // Основной цикл
     while (1) {
-        // Принятие нового соединения
-        int clientSocket = accept(serverSocket, NULL, NULL);
-        if (clientSocket == -1) {
-            perror("Accept failed");
-            continue;
+        // Инициализация множества дескрипторов файлов
+        FD_ZERO(&fds);
+        FD_SET(serverSocket, &fds);  // Основной сокет
+
+        if (AnotherSocket > 0)
+        {
+            FD_SET(AnotherSocket, &fds);
+        }
+        
+        if (AnotherSocket > serverSocket)
+        {
+            maxFd = AnotherSocket;
+        } else {
+            maxFd = serverSocket;
         }
 
-        // Вывод сообщения о новом соединении
-        printf("New connection accepted. Client socket: %d\n", clientSocket);
-
-        // Чтение данных от клиента
-        char buffer[BUFFER_SIZE];
-        ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-        if (bytesRead == -1) {
-            perror("Error reading from client");
-        } else if (bytesRead == 0) {
-            printf("Client disconnected.\n");
-        } else {
-            buffer[bytesRead] = '\0';
-            printf("Received message from client: %s\n", buffer);
-
-            // Отправка ответа клиенту
-            const char* responseMessage = "Hello, Client! I received your message.";
-            ssize_t bytesSent = send(clientSocket, responseMessage, strlen(responseMessage), 0);
-            if (bytesSent == -1) {
-                perror("Error sending response to client");
+        // Вызов pselect
+        if (pselect(maxFd + 1, &fds, NULL, NULL, NULL, &origMask) == -1) {
+            if (errno == EINTR) {
+                if (wasSigHup) {
+                    printf("Received SIGHUP signal.\n");
+                    wasSigHup = 0;  // Сброс флага
+                }
             } else {
-                printf("Response sent to client.\n");
+                perror("pselect error");
+                exit(EXIT_FAILURE);
             }
         }
 
-        // Закрытие клиентского сокета
-        close(clientSocket);
-
-        // Проверка сигнала SIGHUP
-        if (wasSigHup) {
-            printf("Received SIGHUP signal.\n");
-            // Дополнительные действия при получении сигнала
-            wasSigHup = 0; // Сброс флага
+        if (FD_ISSET(AnotherSocket, &fds) && AnotherSocket > 0) {
+            sendMessage(&AnotherSocket);
         }
+
+        if (FD_ISSET(serverSocket, &fds)) {
+            if ((AnotherSocket = accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&addressLength)) < 0) {
+                perror("accept error");
+                exit(EXIT_FAILURE);
+            }
+
+            printf("New connection.\n");
+
+
+        }
+
     }
 
     // Закрытие серверного сокета (эта часть кода не будет выполнена, так как цикл бесконечен)
