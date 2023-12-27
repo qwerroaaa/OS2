@@ -85,7 +85,7 @@ int main() {
     printf("Server listening on port %d...\n", PORT);
 
     // Множество дескрипторов файлов для pselect
-    int maxFd;  // Начальное значение - основной сокет
+    int maxFd;
     fd_set fds;
     int AnotherSocket = 0;
     int addressLength = sizeof(serverAddress);
