@@ -16,31 +16,6 @@ void sigHupHandler(int signo) {
     wasSigHup = 1;
 }
 
-void sendMessage (int* AnotherSocket) {
-    char buffer[BUFFER_SIZE] = { 0 };
-    int readBytes = read(*AnotherSocket, buffer, BUFFER_SIZE);
-
-    if (readBytes > 0) 
-    { 
-        printf("Received data: %d bytes\n", readBytes);
-        printf("Received message from client: %s\n", buffer);
-
-        const char* response = "Hello stranger, it is you server!";
-        if (send(*AnotherSocket, response, strlen(response), 0) < 0) {
-            perror("send error");
-        }
-
-    } else {
-        if (readBytes == 0) {
-            close(*AnotherSocket); 
-            *AnotherSocket = 0; 
-            printf("Connection closed\n\n");
-        } else { 
-            perror("read error"); 
-        }  
-    }
-}
-
 int main() {
     // Регистрация обработчика сигнала SIGHUP
     struct sigaction sa;
@@ -84,6 +59,7 @@ int main() {
 
     printf("Server listening on port %d...\n", PORT);
 
+    char buffer[BUFFER_SIZE] = { 0 };
     // Множество дескрипторов файлов для pselect
     int maxFd;
     fd_set fds;
@@ -121,7 +97,20 @@ int main() {
         }
 
         if (FD_ISSET(AnotherSocket, &fds) && AnotherSocket > 0) {
-            sendMessage(&AnotherSocket);
+            int readBytes = read(AnotherSocket, buffer, 1024);
+            if (readBytes > 0) 
+            {  
+                printf("Received data: %d bytes\n", readBytes);
+                printf("Received message from client: %s\n", buffer);
+            } else {
+                if (readBytes == 0) {
+                    printf("Connection closed\n\n");
+                    close(AnotherSocket); 
+                    AnotherSocket = 0; 
+                } else { 
+                    perror("read error"); 
+                }  
+            }
         }
 
         if (FD_ISSET(serverSocket, &fds)) {

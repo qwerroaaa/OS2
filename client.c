@@ -39,18 +39,6 @@ int main() {
         perror("Error sending message");
     } else {
         printf("Message sent to server.\n");
-
-        // Прием ответа от сервера
-        char buffer[BUFFER_SIZE];
-        ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-        if (bytesRead > 0) {
-            buffer[bytesRead] = '\0';
-            printf("Received response from server: %s\n", buffer);
-        } else if (bytesRead == 0) {
-            printf("Server closed the connection.\n");
-        } else {
-            perror("recv error");
-        }
     }
 
     // Закрытие клиентского сокета
