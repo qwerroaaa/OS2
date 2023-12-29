@@ -6,5 +6,5 @@
 <p>./client</p>
 <h2>Step 3. Check you ID</h2>
 <p>pidof server</p>
-<h2>Step. Check you SIGHUP signal</h2>
+<h2>Step 4. Check you SIGHUP signal</h2>
 <p>kill -SIGHUP -[YOUR ID]</p>
